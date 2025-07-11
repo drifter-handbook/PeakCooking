@@ -4,6 +4,7 @@ using HarmonyLib;
 using PEAKLib.Core;
 using PEAKLib.Items;
 using System.IO;
+using System.Reflection;
 using UnityEngine;
 
 namespace PeakCooking;
@@ -25,12 +26,15 @@ public partial class Plugin : BaseUnityPlugin
         Log = Logger;
         Definition = ModDefinition.GetOrCreate(Info.Metadata);
 
-        string AssetBundlePath = Path.Combine(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "peak_cooking");
+        string AssetBundlePath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "peak_cooking");
         Bundle = AssetBundle.LoadFromFile(AssetBundlePath);
 
         GameObject cookingPotPrefab = Bundle.LoadAsset<GameObject>("Assets/Modding/CookingPot.prefab");
+        // attach behavior
         cookingPotPrefab.AddComponent<CookingPot>();
         new ItemContent(cookingPotPrefab.GetComponent<Item>()).Register(Definition);
+
+        Harmony.CreateAndPatchAll(Assembly.GetExecutingAssembly(), Definition.Id);
 
         // Log our awake here so we can see it in LogOutput.log file
         Log.LogInfo($"Plugin {Name} is loaded!");
