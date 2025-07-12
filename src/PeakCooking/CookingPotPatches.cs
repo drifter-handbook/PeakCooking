@@ -30,7 +30,12 @@ public class CookingPotPatches
                     Fields.Remove(k);
                 }
             }
-            return Fields[interaction];
+            var fields = Fields[interaction];
+            if (fields == null)
+            {
+                throw new PeakCookingException("Extra Field patch logic gave null, this should never happen");
+            }
+            return fields;
         }
 
         [HarmonyPostfix]
@@ -68,7 +73,12 @@ public class CookingPotPatches
                     Fields.Remove(k);
                 }
             }
-            return Fields[item];
+            var fields = Fields[item];
+            if (fields == null)
+            {
+                throw new PeakCookingException("Extra Field patch logic gave null, this should never happen");
+            }
+            return fields;
         }
 
         [HarmonyPostfix]
@@ -82,8 +92,15 @@ public class CookingPotPatches
         {
             if (__instance != null)
             {
-                // TODO
-                Plugin.Log.LogInfo($"Item {item.GetItemName()} placed in Cooking Pot!");
+                var script = GetExtraFields(__instance).script;
+                if (script != null)
+                {
+                    script.AddToPot(item);
+                }
+                else
+                {
+                    throw new PeakCookingException("CookingPot behavior not found, this should never happen");
+                }
                 // delete item
                 if (item != null)
                 {
