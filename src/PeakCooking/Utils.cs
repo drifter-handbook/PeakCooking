@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
+using static PeakCooking.CookingPot;
 
 namespace PeakCooking;
 
@@ -31,6 +32,12 @@ public static class Utils
         obj = value;
     }
 
+    public static Item Item(this PotItem cookingPotItem)
+    {
+        ItemDatabase.TryGetItem(cookingPotItem.ID, out Item item);
+        return item;
+    }
+
     // used to create the dummy objects in the soup
     public static GameObject CloneItemMeshesOnly(GameObject prefab, out Bounds bounds)
     {
@@ -54,7 +61,6 @@ public static class Utils
         // adjust cloned object to center of root
         bounds = ColliderUtils.GetCollidersBounds(prefab);
         adjust.transform.localPosition = -(bounds.center - prefab.transform.position);
-        Plugin.Log.LogInfo($"Bounds calculated to be: {bounds}, {bounds.center - prefab.transform.position}");
         return root;
     }
     private static GameObject CloneItemMeshesHelper(GameObject obj, out bool hasMesh)
