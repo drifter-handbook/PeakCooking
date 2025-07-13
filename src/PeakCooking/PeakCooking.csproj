@@ -13,13 +13,10 @@
 
   <ItemGroup>
     <Reference Include="com.github.PEAKModding.PEAKLib.Core">
-      <HintPath>..\..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\PEAK\BepInEx\plugins\com.github.PEAKModding.PEAKLib.Core.dll</HintPath>
+      <HintPath>..\..\..\..\..\..\AppData\Roaming\Thunderstore Mod Manager\DataFolder\PEAK\profiles\Default\BepInEx\plugins\PEAKModding-PEAKLib_Core\com.github.PEAKModding.PEAKLib.Core.dll</HintPath>
     </Reference>
     <Reference Include="com.github.PEAKModding.PEAKLib.Items">
-      <HintPath>..\..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\PEAK\BepInEx\plugins\com.github.PEAKModding.PEAKLib.Items.dll</HintPath>
-    </Reference>
-    <Reference Include="com.github.PEAKModding.PEAKLib.UI">
-      <HintPath>..\..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\PEAK\BepInEx\plugins\com.github.PEAKModding.PEAKLib.UI.dll</HintPath>
+      <HintPath>..\..\..\..\..\..\AppData\Roaming\Thunderstore Mod Manager\DataFolder\PEAK\profiles\Default\BepInEx\plugins\PEAKModding-PEAKLib_Items\com.github.PEAKModding.PEAKLib.Items.dll</HintPath>
     </Reference>
   </ItemGroup>
 

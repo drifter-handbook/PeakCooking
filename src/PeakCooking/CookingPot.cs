@@ -1,25 +1,24 @@
 ﻿using Newtonsoft.Json;
+using PEAKLib.Items;
+using Photon.Pun;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using UnityEngine;
+using static UnityEngine.Analytics.IAnalytic;
+using static UnityEngine.UIElements.UxmlAttributeDescription;
 
 namespace PeakCooking;
 
-// TODO:
-// Save items added to pot on pickup/place down
-// Implement game logic for what adding an item does
-// Sync fields/methods across multiplayer
 public class CookingPot : ItemComponent
 {
-    // this version of C# has non-nullability enabled, so that's why these getters and setters exist
-    Item? _item;
-    Item potItem { get => Utils.NonNullGet(_item); set => Utils.NonNullSet(ref _item, value); }
-
     GameObject? _soup;
     GameObject soup { get => Utils.NonNullGet(_soup); set => Utils.NonNullSet(ref _soup, value); }
 
     Vector3 soupScale;
 
+    // "dummy items" are the purely cosmetic items floating in the soup
     public class DummyItem
     {
         public ushort ID;
@@ -31,11 +30,9 @@ public class CookingPot : ItemComponent
         }
     }
     List<DummyItem> dummyItems = new List<DummyItem>();
-    float dummyItemRadius = 0.875f;
+    float dummyItemRadius = 0.85f;
     float dummyItemScale = 0.35f;
-    float dummyItemHeight = 0.05f;
-
-    public const DataEntryKey CookingPotDataKey = (DataEntryKey)51;
+    float dummyItemHeight = 0.03f;
 
     // Synced data format
     [Serializable]
@@ -43,37 +40,40 @@ public class CookingPot : ItemComponent
     {
         public ushort ID;
         public int CookedAmount;
+        public int Uses;
     }
-    // controlled by multiplayer sync, do not modify
-    List<PotItem> Items = new List<PotItem>();
 
+    int DataID => Plugin.Definition.Name.GetHashCode();
+    byte[] DataDefault => Serialize(new List<PotItem>());
 
-    public void Start()
+    CookingPotEffects CurrentEffects = new CookingPotEffects();
+
+    public override void Awake()
     {
-        potItem = GetComponent<Item>();
+        base.Awake();
         soup = transform.Find("Model").Find("Soup").gameObject;
         soupScale = soup.transform.Find("Cylinder").localScale * dummyItemRadius;
-        if (string.IsNullOrEmpty(GetData<StringItemData>(CookingPotDataKey).Value))
+        // init item before Item.Start()
+        if (!HasData(DataEntryKey.ItemUses))
         {
-            ClearItemsFromData();
+            OptionableIntItemData optionableIntItemData = GetData<OptionableIntItemData>(DataEntryKey.ItemUses);
+            optionableIntItemData.HasData = true;
+            optionableIntItemData.Value = 0;
+            item.SetUseRemainingPercentage(0f);
         }
+    }
+
+    void Start()
+    {
         OnInstanceDataSet();
+        List<PotItem> data = GetData();
+        Plugin.Log.LogInfo($"Cooking Pot State: {CurrentEffects}");
+        Plugin.Log.LogInfo($"Cooking Pot Items: {JsonConvert.SerializeObject(data)}");
     }
 
     public void Update()
     {
 
-    }
-
-    private void AddToPotGameLogic(Item item)
-    {
-        // TODO: Handle actual logic here
-        Plugin.Log.LogInfo($"Item {item.GetItemName()} placed in Cooking Pot!");
-        // for now, add example hunger restoration
-        var status = potItem.gameObject.AddComponent<Action_ModifyStatus>();
-        status.statusType = CharacterAfflictions.STATUSTYPE.Hunger;
-        status.changeAmount = -0.35f;
-        status.OnCastFinished = true;
     }
 
     public void AddDummyItemToPot(Item item)
@@ -97,28 +97,83 @@ public class CookingPot : ItemComponent
 
     public void AddToPot(Item item)
     {
-        AddItemToData(item);
+        int uses = Mathf.Max(1, item.GetData<OptionableIntItemData>(DataEntryKey.ItemUses).Value);
+        int cookedAmount = item.GetData<IntItemData>(DataEntryKey.CookedAmount).Value;
+        Plugin.Log.LogInfo($"Item {item.GetItemName()} placed in Cooking Pot!");
+        photonView.RPC("AddToPotRPC", RpcTarget.All, (int)item.itemID, cookedAmount, uses);
+    }
+    [PunRPC]
+    public void AddToPotRPC(int ID, int cookedAmount, int uses)
+    {
+        AddItemToData((ushort)ID, cookedAmount, uses);
         OnInstanceDataSet();
-        AddToPotGameLogic(item);
+        List<PotItem> data = GetData();
+        Plugin.Log.LogInfo($"Cooking Pot State: {CurrentEffects}");
+        Plugin.Log.LogInfo($"Cooking Pot Items: {JsonConvert.SerializeObject(data)}");
     }
 
+    public void ClearPot()
+    {
+        photonView.RPC("ClearPotRPC", RpcTarget.All);
+    }
+    [PunRPC]
+    public void ClearPotRPC()
+    {
+        ClearItemsFromData();
+        OnInstanceDataSet();
+        List<PotItem> data = GetData();
+        Plugin.Log.LogInfo($"Cooking Pot State: {CurrentEffects}");
+        Plugin.Log.LogInfo($"Cooking Pot Items: {JsonConvert.SerializeObject(data)}");
+    }
+
+    public void RemoveRandomItem()
+    {
+        List<PotItem> data = GetData();
+        int useIndex = UnityEngine.Random.Range(0, data.Sum(x => x.Uses));
+        photonView.RPC("RemoveItemRPC", RpcTarget.All, useIndex);
+    }
+    [PunRPC]
+    public void RemoveItemRPC(int useIndex)
+    {
+        List<PotItem> data = GetData();
+        List<PotItem> itemIndexes = new List<PotItem>();
+        foreach (PotItem item in data)
+        {
+            for (int i = 0; i < item.Uses; i++)
+            {
+                itemIndexes.Add(item);
+            }
+        }
+        PotItem choice = itemIndexes[Mathf.Max(0, Mathf.Min(useIndex, itemIndexes.Count - 1))];
+        choice.Uses--;
+        // remove any items with uses equal to zero
+        for (int i = 0; i < data.Count; i++)
+        {
+            if (data[i].Uses <= 0)
+            {
+                Plugin.Log.LogInfo($"Item {data[i].Item().GetItemName()} removed from Cooking Pot!");
+                data.RemoveAt(i);
+                i--;
+            }
+        }
+        OptionableIntItemData usesData = item.GetData<OptionableIntItemData>(DataEntryKey.ItemUses);
+        if (usesData.HasData && usesData.Value == 0)
+        {
+            data.Clear();
+        }
+        this.SetModItemData(DataID, Serialize(data));
+        OnInstanceDataSet();
+        Plugin.Log.LogInfo($"Cooking Pot State: {CurrentEffects}");
+        Plugin.Log.LogInfo($"Cooking Pot Items: {JsonConvert.SerializeObject(data)}");
+    }
+
+    // this can be called before Start(), so be careful
     public override void OnInstanceDataSet()
     {
-        StringItemData data = GetData<StringItemData>(CookingPotDataKey);
-        if (string.IsNullOrEmpty(data.Value))
-        {
-            ClearItemsFromData();
-        }
-        var items = Deserialize(data.Value);
-        if (items == null)
-        {
-            Plugin.Log.LogInfo($"Failed to deserialize: {data.Value}");
-            return;
-        }
-        Items = items;
+        List<PotItem> data = GetData();
         // diff with current dummy items
         Dictionary<ushort, int> diff = new Dictionary<ushort, int>();
-        foreach (var item in Items)
+        foreach (var item in data)
         {
             if (item != null)
             {
@@ -137,7 +192,7 @@ public class CookingPot : ItemComponent
             }
             diff[item.ID]--;
         }
-        foreach (var k in diff.Keys)
+        foreach (var k in new List<ushort>(diff.Keys))
         {
             // add items until equal
             if (diff[k] > 0)
@@ -158,6 +213,7 @@ public class CookingPot : ItemComponent
                 {
                     if (dummyItems[i].ID == k)
                     {
+                        Destroy(dummyItems[i].Object);
                         dummyItems.RemoveAt(i);
                         i--;
                         diff[k]++;
@@ -165,39 +221,68 @@ public class CookingPot : ItemComponent
                 }
             }
         }
-        // TODO: update stats
+        // recalculate stats
+        CurrentEffects.FromCookingPotItems(data, data.Sum(x => x.Uses));
+        CurrentEffects.UpdateGenerated(gameObject);
     }
 
     private void ClearItemsFromData()
     {
-        GetData<StringItemData>(CookingPotDataKey).Value = Serialize(new List<PotItem>());
+        this.SetModItemData(DataID, Serialize(new List<PotItem>()));
     }
 
-    private void AddItemToData(Item item)
+    private void AddItemToData(ushort ID, int cookedAmount, int uses)
     {
-        var data = GetData<StringItemData>(CookingPotDataKey);
-        List<PotItem>? items = Deserialize(data.Value);
-        if (items == null)
-        {
-            Plugin.Log.LogInfo($"Failed to deserialize: {data.Value}");
-            return;
-        }
-        items.Add(new PotItem() {
-            ID = item.itemID,
-            CookedAmount = item.GetData<IntItemData>(DataEntryKey.CookedAmount).Value,
+        var data = GetData();
+        IncreaseUses(uses);
+        data.Add(new PotItem() {
+            ID = ID,
+            CookedAmount = cookedAmount,
+            Uses = uses,
         });
-        GetData<StringItemData>(CookingPotDataKey).Value = Serialize(items);
+        this.SetModItemData(DataID, Serialize(data));
     }
 
-    string Serialize(List<PotItem> items)
+    private void IncreaseUses(int amount)
     {
-        string result = JsonConvert.SerializeObject(items);
-        Plugin.Log.LogInfo($"CookingPot Serialize: {result}");
-        return result;
+        OptionableIntItemData data = item.GetData<OptionableIntItemData>(DataEntryKey.ItemUses);
+        if (data.HasData)
+        {
+            int newAmount = Mathf.Min(data.Value + amount, item.totalUses);
+            data.Value = newAmount;
+            if (item.totalUses > 0)
+            {
+                item.SetUseRemainingPercentage(data.Value / (float)item.totalUses);
+            }
+        }
     }
 
-    List<PotItem>? Deserialize(string data)
+    private List<PotItem> GetData()
     {
-        return JsonConvert.DeserializeObject<List<PotItem>>(data);
+        byte[] rawData = this.GetModItemData(DataID, DataDefault);
+        List<PotItem>? data = Deserialize(rawData);
+        if (data == null)
+        {
+            throw new NullReferenceException("Failed to read item data.\n" +
+                $"Bytes: {ItemData.BytesToHex(rawData)}\n" +
+                $"String: {Encoding.UTF8.GetString(rawData)}.");
+        }
+        return data;
+    }
+
+    byte[] Serialize(List<PotItem> data)
+    {
+        return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(data));
+    }
+
+    List<PotItem>? Deserialize(byte[] data)
+    {
+        return JsonConvert.DeserializeObject<List<PotItem>>(Encoding.UTF8.GetString(data));
+    }
+
+    [PunRPC]
+    private void UpdateInstanceDataRPC()
+    {
+        OnInstanceDataSet();
     }
 }
