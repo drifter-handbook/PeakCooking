@@ -47,6 +47,10 @@ public class CookingPotPatches
             {
                 GetExtraFields(__instance).bestCookingPot = __instance.bestInteractable as Item;
             }
+            else
+            {
+                GetExtraFields(__instance).bestCookingPot = null;
+            }
         }
     }
 
