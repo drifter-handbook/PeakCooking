@@ -6,12 +6,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using UnityEngine;
-using static UnityEngine.Analytics.IAnalytic;
-using static UnityEngine.UIElements.UxmlAttributeDescription;
 
 namespace PeakCooking;
 
-public class CookingPot : ItemComponent
+public class CookingPot : ModItemComponent
 {
     GameObject? _soup;
     GameObject soup { get => Utils.NonNullGet(_soup); set => Utils.NonNullSet(ref _soup, value); }
@@ -43,9 +41,6 @@ public class CookingPot : ItemComponent
         public int Uses;
     }
 
-    int DataID => Plugin.Definition.Name.GetHashCode();
-    byte[] DataDefault => Serialize(new List<PotItem>());
-
     CookingPotEffects CurrentEffects = new CookingPotEffects();
 
     public override void Awake()
@@ -61,6 +56,7 @@ public class CookingPot : ItemComponent
             optionableIntItemData.Value = 0;
             item.SetUseRemainingPercentage(0f);
         }
+
     }
 
     void Start()
@@ -161,7 +157,7 @@ public class CookingPot : ItemComponent
         {
             data.Clear();
         }
-        this.SetModItemData(DataID, Serialize(data));
+        SetModItemDataFromJson(data);
         OnInstanceDataSet();
         Plugin.Log.LogInfo($"Cooking Pot State: {CurrentEffects}");
         Plugin.Log.LogInfo($"Cooking Pot Items: {JsonConvert.SerializeObject(data)}");
@@ -228,7 +224,7 @@ public class CookingPot : ItemComponent
 
     private void ClearItemsFromData()
     {
-        this.SetModItemData(DataID, Serialize(new List<PotItem>()));
+        SetModItemDataFromJson(new List<PotItem>());
     }
 
     private void AddItemToData(ushort ID, int cookedAmount, int uses)
@@ -240,7 +236,7 @@ public class CookingPot : ItemComponent
             CookedAmount = cookedAmount,
             Uses = uses,
         });
-        this.SetModItemData(DataID, Serialize(data));
+        SetModItemDataFromJson(data);
     }
 
     private void IncreaseUses(int amount)
@@ -259,25 +255,17 @@ public class CookingPot : ItemComponent
 
     private List<PotItem> GetData()
     {
-        byte[] rawData = this.GetModItemData(DataID, DataDefault);
-        List<PotItem>? data = Deserialize(rawData);
-        if (data == null)
+        bool success = TryGetModItemDataFromJson(out List<PotItem>? data);
+        if (!success)
         {
-            throw new NullReferenceException("Failed to read item data.\n" +
-                $"Bytes: {ItemData.BytesToHex(rawData)}\n" +
-                $"String: {Encoding.UTF8.GetString(rawData)}.");
+            SetModItemDataFromJson(new List<PotItem>());
+        }
+        success = TryGetModItemDataFromJson(out data);
+        if (data == null || !success)
+        {
+            throw new NullReferenceException("Failed to read item data.");
         }
         return data;
-    }
-
-    byte[] Serialize(List<PotItem> data)
-    {
-        return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(data));
-    }
-
-    List<PotItem>? Deserialize(byte[] data)
-    {
-        return JsonConvert.DeserializeObject<List<PotItem>>(Encoding.UTF8.GetString(data));
     }
 
     [PunRPC]
