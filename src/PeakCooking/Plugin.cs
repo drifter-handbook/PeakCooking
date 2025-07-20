@@ -132,13 +132,13 @@ public partial class Plugin : BaseUnityPlugin
     {
         string sceneName = SceneManager.GetActiveScene().name;
 
-        // Check if it's a Level_X scene (Level_0 through Level_13)
+        // Check if it's a Level_X scene (Level_0 through Level_X)
         if (sceneName.StartsWith("Level_"))
         {
             string levelNumberStr = sceneName.Substring(6); // Remove "Level_" prefix
-            if (int.TryParse(levelNumberStr, out int levelNumber))
+            if (int.TryParse(levelNumberStr, out _))
             {
-                return levelNumber >= 0 && levelNumber <= 13;
+                return true;
             }
         }
 
