@@ -13,10 +13,10 @@
 
   <ItemGroup>
     <Reference Include="com.github.PEAKModding.PEAKLib.Core">
-      <HintPath>..\..\..\..\..\..\AppData\Roaming\Thunderstore Mod Manager\DataFolder\PEAK\profiles\Default\BepInEx\plugins\PEAKModding-PEAKLib_Core\com.github.PEAKModding.PEAKLib.Core.dll</HintPath>
+      <HintPath>$(PeakPluginsDir)\PEAKModding-PEAKLib_Core\com.github.PEAKModding.PEAKLib.Core.dll</HintPath>
     </Reference>
     <Reference Include="com.github.PEAKModding.PEAKLib.Items">
-      <HintPath>..\..\..\..\..\..\AppData\Roaming\Thunderstore Mod Manager\DataFolder\PEAK\profiles\Default\BepInEx\plugins\PEAKModding-PEAKLib_Items\com.github.PEAKModding.PEAKLib.Items.dll</HintPath>
+      <HintPath>$(PeakPluginsDir)\PEAKModding-PEAKLib_Items\com.github.PEAKModding.PEAKLib.Items.dll</HintPath>
     </Reference>
   </ItemGroup>
 
